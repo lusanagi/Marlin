@@ -519,13 +519,13 @@ FORCE_INLINE void _draw_axis_value(const AxisEnum axis, const char *value, const
   }
 }
 
-FORCE_INLINE void _draw_heater_status(const heater_ind_t heater, const char prefix, const bool blink) {
+FORCE_INLINE void _draw_heater_status(const heater_id_t heater_id, const char prefix, const bool blink) {
   #if HAS_HEATED_BED
-    const bool isBed = heater < 0;
-    const float t1 = (isBed ? thermalManager.degBed()       : thermalManager.degHotend(heater)),
-                t2 = (isBed ? thermalManager.degTargetBed() : thermalManager.degTargetHotend(heater));
+    const bool isBed = TERN(HAS_HEATED_CHAMBER, heater_id == H_BED, heater_id < 0);
+    const float t1 = (isBed ? thermalManager.degBed()       : thermalManager.degHotend(heater_id)),
+                t2 = (isBed ? thermalManager.degTargetBed() : thermalManager.degTargetHotend(heater_id));
   #else
-    const float t1 = thermalManager.degHotend(heater), t2 = thermalManager.degTargetHotend(heater);
+    const float t1 = thermalManager.degHotend(heater_id), t2 = thermalManager.degTargetHotend(heater_id);
   #endif
 
   if (prefix >= 0) lcd_put_wchar(prefix);
@@ -536,14 +536,7 @@ FORCE_INLINE void _draw_heater_status(const heater_ind_t heater, const char pref
   #if !HEATER_IDLE_HANDLER
     UNUSED(blink);
   #else
-    const bool is_idle = (
-      #if HAS_HEATED_BED
-        isBed ? thermalManager.bed_idle.timed_out :
-      #endif
-      thermalManager.hotend_idle[heater].timed_out
-    );
-
-    if (!blink && is_idle) {
+    if (!blink && thermalManager.heater_idle[thermalManager.idle_index_for_id(heater_id)].timed_out) {
       lcd_put_wchar(' ');
       if (t2 >= 10) lcd_put_wchar(' ');
       if (t2 >= 100) lcd_put_wchar(' ');
@@ -560,27 +553,14 @@ FORCE_INLINE void _draw_heater_status(const heater_ind_t heater, const char pref
 }
 
 FORCE_INLINE void _draw_bed_status(const bool blink) {
-  _draw_heater_status(H_BED, (
-      #if HAS_LEVELING
-        planner.leveling_active && blink ? '_' :
-      #endif
-      LCD_STR_BEDTEMP[0]
-    ),
-    blink
-  );
+  _draw_heater_status(H_BED, TERN0(HAS_LEVELING, blink && planner.leveling_active) ? '_' : LCD_STR_BEDTEMP[0], blink);
 }
 
 #if HAS_PRINT_PROGRESS
 
   FORCE_INLINE void _draw_print_progress() {
     const uint8_t progress = ui.get_progress_percent();
-    lcd_put_u8str_P(PSTR(
-      #if ENABLED(SDSUPPORT)
-        "SD"
-      #elif ENABLED(LCD_SET_PROGRESS_MANUALLY)
-        "P:"
-      #endif
-    ));
+    lcd_put_u8str_P(PSTR(TERN(SDSUPPORT, "SD", "P:")));
     if (progress)
       lcd_put_u8str(ui8tostr3rj(progress));
     else
@@ -990,22 +970,24 @@ void MarlinUI::draw_status_screen() {
     void MarlinUI::draw_hotend_status(const uint8_t row, const uint8_t extruder) {
       if (row < LCD_HEIGHT) {
         lcd_moveto(LCD_WIDTH - 9, row);
-        _draw_heater_status((heater_ind_t)extruder, LCD_STR_THERMOMETER[0], get_blink());
+        _draw_heater_status((heater_id_t)extruder, LCD_STR_THERMOMETER[0], get_blink());
       }
     }
 
   #endif // ADVANCED_PAUSE_FEATURE
 
   // Draw a static item with no left-right margin required. Centered by default.
-  void MenuItem_static::draw(const uint8_t row, PGM_P const pstr, const uint8_t style/*=SS_DEFAULT*/, const char * const valstr/*=nullptr*/) {
+  void MenuItem_static::draw(const uint8_t row, PGM_P const pstr, const uint8_t style/*=SS_DEFAULT*/, const char * const vstr/*=nullptr*/) {
     int8_t n = LCD_WIDTH;
     lcd_moveto(0, row);
-    if ((style & SS_CENTER) && !valstr) {
-      int8_t pad = (LCD_WIDTH - utf8_strlen_P(pstr)) / 2;
+    const int8_t plen = pstr ? utf8_strlen_P(pstr) : 0,
+                 vlen = vstr ? utf8_strlen(vstr) : 0;
+    if (style & SS_CENTER) {
+      int8_t pad = (LCD_WIDTH - plen - vlen) / 2;
       while (--pad >= 0) { lcd_put_wchar(' '); n--; }
     }
-    n = lcd_put_u8str_ind_P(pstr, itemIndex, itemString, n);
-    if (valstr) n -= lcd_put_u8str_max(valstr, n);
+    if (plen) n = lcd_put_u8str_ind_P(pstr, itemIndex, itemString, n);
+    if (vlen) n -= lcd_put_u8str_max(vstr, n);
     for (; n > 0; --n) lcd_put_wchar(' ');
   }
 
