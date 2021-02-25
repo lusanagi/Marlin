@@ -30,9 +30,17 @@
 #endif
 
 #if ENABLED(FAST_PWM_FAN) || SPINDLE_LASER_FREQUENCY
+<<<<<<<< HEAD:Marlin/src/HAL/TEENSY40_41/inc/SanityCheck.h
   #error "Features requiring Hardware PWM (FAST_PWM_FAN, SPINDLE_LASER_FREQUENCY) are not yet supported on Teensy 4.0/4.1."
+========
+  #error "Features requiring Hardware PWM (FAST_PWM_FAN, SPINDLE_LASER_FREQUENCY) are not yet supported on STM32F4/F7."
+>>>>>>>> 7fc75fc48263690cd8dd64686213d6a42d0795e6:Marlin/src/HAL/STM32_F4_F7/inc/SanityCheck.h
 #endif
 
 #if HAS_TMC_SW_SERIAL
-  #error "TMC220x Software Serial is not supported on this platform."
+  #error "TMC220x Software Serial is not supported on Teensy 4.0/4.1."
+#endif
+
+#if ENABLED(POSTMORTEM_DEBUGGING)
+  #error "POSTMORTEM_DEBUGGING is not yet supported on Teensy 4.0/4.1."
 #endif
